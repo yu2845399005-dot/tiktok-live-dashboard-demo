@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="277.046" height="78.607" viewBox="0 0 277.046 78.607" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="Graph line">
+<use xlink:href="#stroke0_0_18" stroke="url(#paint0_linear_0_18)"/>
+<use xlink:href="#stroke0_0_18" stroke="#3D71FF"/>
+<use xlink:href="#stroke0_0_18" stroke="#09EFF4"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_18" x1="275.87" y1="77.6071" x2="1.39738" y2="77.6071" gradientUnits="userSpaceOnUse">
+<stop stop-color="#52D5FF"/>
+<stop offset="0.505208" stop-color="#0047FF"/>
+<stop offset="1" stop-color="#DBB7FF"/>
+</linearGradient>
+<path id="stroke0_0_18" d="M1.39738 20.9531C2.66646 22.6902 8.05257 18.8073 14.6419 21.01C19.8304 22.7444 24.3438 28.3144 30.9863 29.9976C43.5937 33.1922 53.8832 36.4753 59.7298 44.1055C65.5764 51.7356 74.3521 77.607 84.8099 77.607C95.2677 77.607 100.591 64.1502 104.536 55.2857C108.315 46.7952 115.593 26.4023 127.362 24.1538C140.351 21.6721 151.033 6.53842 166.532 3.99466C174.792 2.63886 181.41 5.27762 188.794 9.37777C196.177 13.4779 194.732 15.2484 211.338 18.4093C225.041 21.0178 228.626 29.9976 242.054 31.0781C255.482 32.1587 261.693 -1.65432 275.87 1.16825" stroke-width="2" stroke-linecap="square" stroke-linejoin="round"/>
+</defs>
+</svg>

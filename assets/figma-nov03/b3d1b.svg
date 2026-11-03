@@ -1,0 +1,30 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="418.605" height="377.382" viewBox="0 0 418.605 377.382" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="&#229;&#133;&#137;" opacity="0.2">
+<g id="Ellipse 65693965" opacity="0.77" filter="url(#filter0_f_0_17)">
+<path d="M187.509 153.121C121.509 208.501 48.2865 211.389 95.7857 286.502C155.203 317.148 177.069 274.715 243.068 219.334C309.068 163.954 350.134 104.237 334.791 85.9525C319.449 67.6682 253.508 97.7404 187.509 153.121Z" fill="url(#paint0_linear_0_17)" fill-opacity="0.72"/>
+</g>
+<g id="Ellipse 65693966" opacity="0.82" filter="url(#filter1_f_0_17)">
+<ellipse cx="8.64059" cy="124.274" rx="8.64059" ry="124.274" transform="matrix(-0.587785 -0.809017 -0.809017 0.587786 359.356 130.357)" fill="url(#paint1_linear_0_17)" fill-opacity="0.72"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_f_0_17" x="1.90735e-05" y="1.90735e-05" width="418.605" height="377.382" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="40.3" result="effect1_foregroundBlur_0_17"/>
+</filter>
+<filter id="filter1_f_0_17" x="124.866" y="94.8281" width="257.741" height="203.171" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="14.1" result="effect1_foregroundBlur_0_17"/>
+</filter>
+<linearGradient id="paint0_linear_0_17" x1="334.79" y1="85.9525" x2="95.7841" y2="286.502" gradientUnits="userSpaceOnUse">
+<stop stop-color="#475DDD"/>
+<stop offset="1" stop-color="#3B425A"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_17" x1="8.64059" y1="0" x2="8.64059" y2="248.549" gradientUnits="userSpaceOnUse">
+<stop stop-color="#6881E6"/>
+<stop offset="1" stop-color="#3B545A"/>
+</linearGradient>
+</defs>
+</svg>
