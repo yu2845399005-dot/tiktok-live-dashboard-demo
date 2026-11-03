@@ -355,11 +355,12 @@ function loadLinearTexture(path) {
   return tex;
 }
 
-const dayTexture = loadColorTexture("./images/8k_earth_daymap.jpg");
-const nightTexture = loadColorTexture("./images/8k_earth_nightmap.jpg");
-const cloudsTexture = loadColorTexture("./images/8k_earth_clouds.jpg");
-const starsTexture = loadColorTexture("./images/8k_stars.jpg");
-const normalMap = loadLinearTexture("./images/8k_earth_normal_map.png");
+// The dashboard replaces the planet material and hides the star field.
+const dayTexture = isDashboardEmbed ? null : loadColorTexture("./images/8k_earth_daymap.jpg");
+const nightTexture = loadColorTexture(isDashboardEmbed ? "./images/dashboard-night.jpg" : "./images/8k_earth_nightmap.jpg");
+const cloudsTexture = loadColorTexture(isDashboardEmbed ? "./images/dashboard-clouds.jpg" : "./images/8k_earth_clouds.jpg");
+const starsTexture = isDashboardEmbed ? null : loadColorTexture("./images/8k_stars.jpg");
+const normalMap = isDashboardEmbed ? null : loadLinearTexture("./images/8k_earth_normal_map.png");
 
 // ---------------------------------------------------------------------------
 // 星空背景：一个远距离大球体，支持旋转与透明度闪烁

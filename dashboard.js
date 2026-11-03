@@ -118,32 +118,37 @@ for (const [index,card] of $$('.region-card').entries()) {
   strong.innerHTML='<small>$</small><span class="region-number">0.0</span>M';
   regionCounters.set(card.dataset.region,{index,target:value,node:strong.querySelector('.region-number'),startedAt:null,done:false});
 }
+const dashboardEntryStart=performance.now();
 let totalCountComplete=false;
 let lastEntryElapsed=-1;
 function updateEntryNumbers(elapsed) {
   if(elapsed<lastEntryElapsed-500) {
-    totalCountComplete=false;
     for(const counter of regionCounters.values()){counter.startedAt=null;counter.done=false;counter.node.textContent='0.0';}
   }
   lastEntryElapsed=elapsed;
   const entry=entryFrame(elapsed,reducedEntryMotion && elapsed>=0);
+  $('.earth-stage').style.setProperty('--placeholder-opacity',entry.placeholder);
+  $('.earth-stage').style.setProperty('--globe-opacity',entry.globe);
+}
+
+function animateDashboardEntry(now) {
+  const entry=entryFrame(now-dashboardEntryStart,reducedEntryMotion);
   const total=$('.total');
   total.style.setProperty('--entry-opacity',entry.totalReveal);
   total.style.setProperty('--entry-shift',`${((1-entry.totalReveal)*10).toFixed(2)}px`);
   total.style.setProperty('--entry-blur',`${((1-entry.totalReveal)*5).toFixed(2)}px`);
-  $('.earth-stage').style.setProperty('--placeholder-opacity',entry.placeholder);
-  $('.earth-stage').style.setProperty('--globe-opacity',entry.globe);
   $('#dashboard').style.setProperty('--arrow-opacity',entry.arrow);
   const expandButton=$('#expand-metrics');
   expandButton.disabled=entry.arrow<.98;
   expandButton.setAttribute('aria-hidden',String(entry.arrow<.98));
   $('#dashboard').style.setProperty('--panel-opacity',entry.panels);
   $('#dashboard').style.setProperty('--panel-shift',`${((1-entry.panels)*10).toFixed(2)}px`);
-  $('#dashboard').dataset.entry=elapsed<0?'waiting':entry.complete?'complete':'revealing';
+  $('#dashboard').dataset.entry=entry.complete?'complete':'revealing';
   if(!totalCountComplete) {
     total.querySelector('strong').textContent=Math.round(56779450*entry.total).toLocaleString('en-US');
     totalCountComplete=entry.total===1;
   }
+  if(!entry.complete)requestAnimationFrame(animateDashboardEntry);
 }
 
 function updateRegionLabels(points,elapsed=-1) {
@@ -193,6 +198,7 @@ function updateRegionLabels(points,elapsed=-1) {
 }
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('.earth-frame').contentWindow)return;
+  if(event.data?.type==='earth:failed')toast('地球加载失败，其他看板内容可正常使用');
   if(event.data?.type==='earth:regions')updateRegionLabels(event.data.points,event.data.entryElapsed);
   if(event.data?.type==='earth:ready'&&state.region!=='Global')$('.earth-frame').contentWindow.postMessage({type:'earth:focus-region',region:state.region},location.origin);
   if(event.data?.type==='earth:reset'&&state.region!=='Global')setRegion('Global');
@@ -216,6 +222,7 @@ $('#date-control').addEventListener('click',()=>$('#date-dialog').showModal());
 $('#today').addEventListener('click',()=>{$('#date-label').textContent='Today';$('#date-start').value=localDate;$('#date-end').value=localDate;$('#date-dialog').close();toast('已切换至今日演示数据');});
 $('#date-form').addEventListener('submit',event=>{event.preventDefault();const start=$('#date-start').value,end=$('#date-end').value;if(start>end){$('#date-error').textContent='结束日期不能早于开始日期';return;}$('#date-error').textContent='';$('#date-label').textContent=start===end?start.slice(5):`${start.slice(5)} – ${end.slice(5)}`;$('#date-dialog').close();toast('日期范围已更新');});
 renderMetrics();renderRanking();
+requestAnimationFrame(animateDashboardEntry);
 $$('[role=tablist]').forEach(list=>selectTab([...list.querySelectorAll('[role=tab]')],list.querySelector('[aria-selected=true]')));
 
 for(const id of ['cloud-toggle','spin-toggle']) $('#'+id).addEventListener('change',event=>$('.earth-frame').contentWindow.postMessage({type:'earth:appearance',clouds:$('#cloud-toggle').checked,spin:$('#spin-toggle').checked},location.origin));

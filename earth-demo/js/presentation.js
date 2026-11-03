@@ -1,6 +1,6 @@
 // Presentation adjustments layered on the unmodified MIT-licensed upstream demo.
 import * as THREE from 'three';
-import './presentation-base.js';
+import './presentation-base.js?v=20261103-fast-start';
 import {createCountryRegions} from './country-regions.js';
 import {entryFrame} from '../../entry-motion.mjs?v=20261027-transparent-entry';
 

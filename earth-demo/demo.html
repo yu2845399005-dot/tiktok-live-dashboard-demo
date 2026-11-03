@@ -616,11 +616,12 @@
   </nav>
   <p class="help">拖动旋转 · 滚轮缩放 · H 隐藏界面</p>
   <script type="module">
-    try { await import('./js/presentation.js?v=20261103-hover-glow'); }
+    try { await import('./js/presentation.js?v=20261103-fast-start'); }
     catch (error) {
       document.body.classList.add('load-failed');
       document.querySelector('#loader .label').textContent = '地球加载失败，请刷新页面重试';
       document.getElementById('loader').classList.remove('hidden');
+      if (parent !== window) parent.postMessage({type:'earth:failed'}, location.origin);
       console.error(error);
     }
   </script>
