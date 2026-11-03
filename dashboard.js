@@ -143,8 +143,8 @@ function renderRevenue(value,roll=false) {
       if(digit.textContent===character)continue;
       digit.textContent=character;
       if(roll&&!reducedEntryMotion)digit.animate(
-        [{transform:'translateY(.28em)',opacity:.45},{transform:'translateY(0)',opacity:1}],
-        {duration:320,easing:'cubic-bezier(.18,.72,.25,1)'}
+        [{transform:'translateY(.16em)',opacity:.68},{transform:'translateY(0)',opacity:1}],
+        {duration:420,easing:'cubic-bezier(.18,.72,.25,1)'}
       );
     }
   }
@@ -174,7 +174,7 @@ function updateDashboardEntry(elapsed) {
     renderRevenue(Math.round(startingRevenue*(.985+.015*entry.total)));
     if(entry.complete) {
       // Simulate incoming revenue in the demo, independently of rendering speed.
-      revenueTimer=setInterval(()=>renderRevenue(displayedRevenue+40+Math.floor(Math.random()*160),true),850);
+      revenueTimer=setInterval(()=>renderRevenue(displayedRevenue+20+Math.floor(Math.random()*70),true),1150);
     }
   }
 }
