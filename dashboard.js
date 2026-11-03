@@ -152,9 +152,14 @@ function renderRevenue(value,roll=false) {
       const incoming=document.createElement('span');
       incoming.textContent=character;
       digit.replaceChildren(incoming,outgoing);
-      const timing={duration:560,easing:'cubic-bezier(.35,0,.25,1)'};
-      incoming.animate([{transform:'translateY(-35%)',opacity:0},{transform:'translateY(0)',opacity:1}],timing);
-      const exit=outgoing.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(35%)',opacity:0}],timing);
+      const exit=outgoing.animate(
+        [{transform:'translateY(0)',opacity:1},{transform:'translateY(20%)',opacity:0}],
+        {duration:150,easing:'ease-in',fill:'forwards'}
+      );
+      incoming.animate(
+        [{transform:'translateY(-24%)',opacity:0},{transform:'translateY(0)',opacity:1}],
+        {delay:150,duration:330,easing:'cubic-bezier(.2,.65,.3,1)',fill:'backwards'}
+      );
       exit.onfinish=()=>outgoing.remove();
     }
   }
