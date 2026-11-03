@@ -153,8 +153,8 @@ function renderRevenue(value,roll=false) {
       incoming.textContent=character;
       digit.replaceChildren(incoming,outgoing);
       const timing={duration:560,easing:'cubic-bezier(.35,0,.25,1)'};
-      incoming.animate([{transform:'translateY(-100%)'},{transform:'translateY(0)'}],timing);
-      const exit=outgoing.animate([{transform:'translateY(0)'},{transform:'translateY(100%)'}],timing);
+      incoming.animate([{transform:'translateY(-35%)',opacity:0},{transform:'translateY(0)',opacity:1}],timing);
+      const exit=outgoing.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(35%)',opacity:0}],timing);
       exit.onfinish=()=>outgoing.remove();
     }
   }
