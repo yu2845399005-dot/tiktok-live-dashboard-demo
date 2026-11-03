@@ -118,41 +118,69 @@ for (const [index,card] of $$('.region-card').entries()) {
   strong.innerHTML='<small>$</small><span class="region-number">0.0</span>M';
   regionCounters.set(card.dataset.region,{index,target:value,node:strong.querySelector('.region-number'),startedAt:null,done:false});
 }
-const dashboardEntryStart=performance.now();
-let totalCountComplete=false;
+const dashboard=$('#dashboard');
+const totalDisplay=$('.total');
+const totalDigits=totalDisplay.querySelector('strong');
+const startingRevenue=Number(totalDigits.dataset.total);
+const revenueFormat=new Intl.NumberFormat('en-US');
+let displayedRevenue=-1;
+let revenueTimer=null;
 let lastEntryElapsed=-1;
-function updateEntryNumbers(elapsed) {
+
+function renderRevenue(value,roll=false) {
+  if(value===displayedRevenue)return;
+  displayedRevenue=value;
+  const formatted=revenueFormat.format(value);
+  if(totalDigits.childElementCount!==formatted.length) {
+    totalDigits.replaceChildren(...Array.from(formatted,character=>{
+      const digit=document.createElement('span');
+      digit.textContent=character;
+      return digit;
+    }));
+  } else {
+    for(const [index,character] of Array.from(formatted).entries()) {
+      const digit=totalDigits.children[index];
+      if(digit.textContent===character)continue;
+      digit.textContent=character;
+      if(roll&&!reducedEntryMotion)digit.animate(
+        [{transform:'translateY(.28em)',opacity:.45},{transform:'translateY(0)',opacity:1}],
+        {duration:320,easing:'cubic-bezier(.18,.72,.25,1)'}
+      );
+    }
+  }
+  totalDisplay.setAttribute('aria-label',`总营收 ${formatted} 美元`);
+}
+
+function updateDashboardEntry(elapsed) {
   if(elapsed<lastEntryElapsed-500) {
     for(const counter of regionCounters.values()){counter.startedAt=null;counter.done=false;counter.node.textContent='0.0';}
   }
   lastEntryElapsed=elapsed;
-  const entry=entryFrame(elapsed,reducedEntryMotion && elapsed>=0);
+  const entry=entryFrame(elapsed,reducedEntryMotion&&elapsed>=0);
+  const reveal=entry.globe;
   $('.earth-stage').style.setProperty('--placeholder-opacity',entry.placeholder);
-  $('.earth-stage').style.setProperty('--globe-opacity',entry.globe);
-}
-
-function animateDashboardEntry(now) {
-  const entry=entryFrame(now-dashboardEntryStart,reducedEntryMotion);
-  const total=$('.total');
-  total.style.setProperty('--entry-opacity',entry.totalReveal);
-  total.style.setProperty('--entry-shift',`${((1-entry.totalReveal)*10).toFixed(2)}px`);
-  total.style.setProperty('--entry-blur',`${((1-entry.totalReveal)*5).toFixed(2)}px`);
-  $('#dashboard').style.setProperty('--arrow-opacity',entry.arrow);
+  $('.earth-stage').style.setProperty('--globe-opacity',reveal);
+  totalDisplay.style.setProperty('--entry-opacity',reveal);
+  totalDisplay.style.setProperty('--entry-shift',`${((1-reveal)*10).toFixed(2)}px`);
+  totalDisplay.style.setProperty('--entry-blur',`${((1-reveal)*5).toFixed(2)}px`);
+  dashboard.style.setProperty('--arrow-opacity',entry.arrow);
+  dashboard.style.setProperty('--panel-opacity',reveal);
+  dashboard.style.setProperty('--panel-shift',`${((1-reveal)*10).toFixed(2)}px`);
   const expandButton=$('#expand-metrics');
   expandButton.disabled=entry.arrow<.98;
   expandButton.setAttribute('aria-hidden',String(entry.arrow<.98));
-  $('#dashboard').style.setProperty('--panel-opacity',entry.panels);
-  $('#dashboard').style.setProperty('--panel-shift',`${((1-entry.panels)*10).toFixed(2)}px`);
-  $('#dashboard').dataset.entry=entry.complete?'complete':'revealing';
-  if(!totalCountComplete) {
-    total.querySelector('strong').textContent=Math.round(56779450*entry.total).toLocaleString('en-US');
-    totalCountComplete=entry.total===1;
+  dashboard.dataset.entry=entry.complete?'complete':'revealing';
+  if(revenueTimer===null) {
+    renderRevenue(Math.round(startingRevenue*(.985+.015*entry.total)));
+    if(entry.complete) {
+      // Simulate incoming revenue in the demo, independently of rendering speed.
+      revenueTimer=setInterval(()=>renderRevenue(displayedRevenue+40+Math.floor(Math.random()*160),true),850);
+    }
   }
-  if(!entry.complete)requestAnimationFrame(animateDashboardEntry);
 }
 
 function updateRegionLabels(points,elapsed=-1) {
-  updateEntryNumbers(elapsed);
+  updateDashboardEntry(elapsed);
   if (!Array.isArray(points)) return;
   const frame = $('.earth-frame');
   const reserved=[];
@@ -198,7 +226,7 @@ function updateRegionLabels(points,elapsed=-1) {
 }
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('.earth-frame').contentWindow)return;
-  if(event.data?.type==='earth:failed')toast('地球加载失败，其他看板内容可正常使用');
+  if(event.data?.type==='earth:failed'){updateDashboardEntry(2600);toast('地球加载失败，其他看板内容可正常使用');}
   if(event.data?.type==='earth:regions')updateRegionLabels(event.data.points,event.data.entryElapsed);
   if(event.data?.type==='earth:ready'&&state.region!=='Global')$('.earth-frame').contentWindow.postMessage({type:'earth:focus-region',region:state.region},location.origin);
   if(event.data?.type==='earth:reset'&&state.region!=='Global')setRegion('Global');
@@ -222,7 +250,6 @@ $('#date-control').addEventListener('click',()=>$('#date-dialog').showModal());
 $('#today').addEventListener('click',()=>{$('#date-label').textContent='Today';$('#date-start').value=localDate;$('#date-end').value=localDate;$('#date-dialog').close();toast('已切换至今日演示数据');});
 $('#date-form').addEventListener('submit',event=>{event.preventDefault();const start=$('#date-start').value,end=$('#date-end').value;if(start>end){$('#date-error').textContent='结束日期不能早于开始日期';return;}$('#date-error').textContent='';$('#date-label').textContent=start===end?start.slice(5):`${start.slice(5)} – ${end.slice(5)}`;$('#date-dialog').close();toast('日期范围已更新');});
 renderMetrics();renderRanking();
-requestAnimationFrame(animateDashboardEntry);
 $$('[role=tablist]').forEach(list=>selectTab([...list.querySelectorAll('[role=tab]')],list.querySelector('[aria-selected=true]')));
 
 for(const id of ['cloud-toggle','spin-toggle']) $('#'+id).addEventListener('change',event=>$('.earth-frame').contentWindow.postMessage({type:'earth:appearance',clouds:$('#cloud-toggle').checked,spin:$('#spin-toggle').checked},location.origin));

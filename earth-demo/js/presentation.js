@@ -1,6 +1,6 @@
 // Presentation adjustments layered on the unmodified MIT-licensed upstream demo.
 import * as THREE from 'three';
-import './presentation-base.js?v=20261103-fast-start';
+import './presentation-base.js?v=20261103-light-globe';
 import {createCountryRegions} from './country-regions.js';
 import {entryFrame} from '../../entry-motion.mjs?v=20261027-transparent-entry';
 
@@ -110,7 +110,27 @@ const cutShader = `
    return t<.45?mix(cyan,blue,t/.45):t<.68?mix(blue,violet,(t-.45)/.23):mix(violet,rose,(t-.68)/.32);
  }
 `;
-await window.__earthTexturesReady;
+async function loadDashboardLandMask() {
+ const image=await new THREE.ImageLoader().loadAsync(new URL('../data/world/dashboard-land-mask.png',import.meta.url).href);
+ const canvas=document.createElement('canvas');
+ canvas.width=image.width;
+ canvas.height=image.height;
+ const context=canvas.getContext('2d',{willReadFrequently:true});
+ // Keep the CPU sampling and GPU texture in the same south-to-north order.
+ context.setTransform(1,0,0,-1,0,image.height);
+ context.drawImage(image,0,0);
+ const {data,width,height}=context.getImageData(0,0,image.width,image.height);
+ const texture=new THREE.DataTexture(new Uint8Array(data.buffer),width,height,THREE.RGBAFormat);
+ texture.wrapS=THREE.RepeatWrapping;
+ texture.magFilter=THREE.LinearFilter;
+ texture.minFilter=THREE.LinearFilter;
+ texture.needsUpdate=true;
+ return texture;
+}
+const [atlas]=await Promise.all([
+ isDashboardEmbed ? loadDashboardLandMask().catch(()=>createCountryRegions()) : createCountryRegions(),
+ window.__earthTexturesReady,
+]);
 const nightMap = earth.material.uniforms.nightTexture?.value.image;
 earth.material = new THREE.ShaderMaterial({uniforms:cutUniforms,transparent:isDashboardEmbed,
  vertexShader:`varying vec3 vNormal; varying vec2 vUv; void main(){vUv=uv;vNormal=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
@@ -130,7 +150,6 @@ earth.material = new THREE.ShaderMaterial({uniforms:cutUniforms,transparent:isDa
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
  }`});
-const atlas=await createCountryRegions();
 cutUniforms.landMask.value=atlas;
 earth.material.needsUpdate=true;
 const {data,width,height}=atlas.image;

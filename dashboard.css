@@ -114,3 +114,8 @@ dialog{border:1px solid #4a79bc80;border-radius:20px;padding:24px;background:#10
 .creator-row:nth-child(3){background:linear-gradient(90deg,#4a79bc20,transparent)}
 .creator-row:nth-child(-n+3) .rank{color:#ff3560}
 .grade,.grade.top{color:#9eccff;background:#0051bb99}.grade.neutral{color:#a7abb0;background:#2e3238}
+
+/* Keep the header and rolling revenue in sync with the globe reveal. */
+.date-tools,.brand-line,.utility-tools{opacity:var(--panel-opacity,0);transform:translateY(var(--panel-shift,10px))}
+.total>strong{font-variant-numeric:tabular-nums}
+.total>strong>span{display:inline-block}
