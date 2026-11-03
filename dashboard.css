@@ -119,3 +119,8 @@ dialog{border:1px solid #4a79bc80;border-radius:20px;padding:24px;background:#10
 .date-tools,.brand-line,.utility-tools{opacity:var(--panel-opacity,0);transform:translateY(var(--panel-shift,10px))}
 .total>strong{font-variant-numeric:tabular-nums}
 .total>strong>span{display:inline-block}
+
+.total>strong>span{position:relative;overflow:clip}
+.total>strong>span>span{display:inline-block}
+.total>strong>span>.revenue-outgoing{position:absolute;top:0;left:0}
+.region-card.is-docked{background:rgba(3,23,45,.94)}
