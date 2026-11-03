@@ -144,7 +144,7 @@ earth.material = new THREE.ShaderMaterial({uniforms:cutUniforms,transparent:isDa
  if (${isDashboardEmbed ? 'true' : 'false'}) {
    float capAlpha=smoothstep(.56,.99,p.y);
    float edge=smoothstep(.945,1.0,length(p));
-   col=mix(vec3(.001,.012,.068),vec3(.012,.43,.86),edge*edge);
+   col=mix(vec3(.001,.012,.068),vec3(.011,.36,.76),edge*edge);
    gl_FragColor=vec4(col,max(capAlpha,land*.09)*entryTerrain);
  } else gl_FragColor=vec4(col*entryTerrain,1.);
  #include <tonemapping_fragment>
@@ -230,7 +230,9 @@ const particles=new THREE.Points(geometry,new THREE.ShaderMaterial({
  facing=dot(normalize(normalMatrix*normalize(position)),normalize(-p.xyz));
  gl_Position=projectionMatrix*p;gl_PointSize=(mix(1.4,3.1,particleTone)+mix(4.3,7.8,particleTone)*hoverAmount)*float(${Math.min(devicePixelRatio,2).toFixed(1)})*6.5/-p.z*mix(1.,1.9,hoverAmount);}`,
  fragmentShader:cutShader+`varying float vTone; varying float vHover; varying float facing;
- void main(){if(facing<.015)discard;float haloRadius=length(gl_PointCoord-.5);
+ void main(){if(facing<.015)discard;
+ vec2 pointOffset=gl_PointCoord-.5;
+ float haloRadius=length(pointOffset);
  float r=haloRadius*mix(1.,1.9,vHover);
  float edge=mix(.5,.49,vHover);
  float featherStart=mix(.30,.26,vHover);
@@ -247,7 +249,16 @@ const particles=new THREE.Points(geometry,new THREE.ShaderMaterial({
    *smoothstep(.015,.15,facing)*entryRed;
  float opacity=coreOpacity+haloOpacity*(1.-coreOpacity);
  vec3 color=mix(vec3(.20,.48,1.),core,coreOpacity/max(opacity,.001));
- gl_FragColor=vec4(color,opacity);
+ // Idle particles range from soft blue flecks to crisp ice-blue diamonds.
+ float clarity=smoothstep(.34,.84,vTone);
+ float diamond=abs(pointOffset.x)+abs(pointOffset.y);
+ float idleDistance=mix(haloRadius,diamond,clarity);
+ float idleEdge=1.-smoothstep(mix(.06,.32,clarity),.47,idleDistance);
+ float idleVisibility=mix(.19,.96,clarity)*mix(.57,1.,cap);
+ vec3 idleColor=mix(vec3(.045,.17,.37),vec3(.48,.77,1.),clarity*clarity);
+ float idleWeight=1.-smoothstep(0.,.34,vHover);
+ float idleAlpha=idleEdge*idleVisibility*smoothstep(.015,.15,facing)*entryRed;
+ gl_FragColor=vec4(mix(color,idleColor,idleWeight),mix(opacity,idleAlpha,idleWeight));
  #include <colorspace_fragment>
  }`
 }));
@@ -330,7 +341,7 @@ const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(2.72, 96, 96), new TH
         float upper=smoothstep(.35,.94,p.y);
         float rim=exp(-abs(impact-2.0)*33.0);
         glowColor=mix(vec3(.015,.20,.94),vec3(.04,.65,1.),rim*upper);
-        opacity=(opacity*.94+rim*entryGlow*.42)*upper;
+        opacity=(opacity*.90+rim*entryGlow*.36)*upper;
       }
       gl_FragColor=vec4(glowColor,min(opacity*1.45,1.0));
     }
