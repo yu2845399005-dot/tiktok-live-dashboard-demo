@@ -88,35 +88,54 @@ $('#previous-page').addEventListener('click', () => { state.page=Math.max(1,stat
 $('#next-page').addEventListener('click', () => { state.page=Math.min(10,state.page+1);renderRanking(); });
 function setRegion(region) {
   state.region=region; $('#region-select').value=region;
-  $$('.region-card').forEach(card=>card.setAttribute('aria-pressed',String(card.dataset.region===region)));
+  for(const [name,card] of regionLabels) {
+    const pressed=String(name===region);
+    card.setAttribute('aria-pressed',pressed);
+    regionSummaryRows.get(name).button.setAttribute('aria-pressed',pressed);
+  }
   $('.earth-frame').contentWindow.postMessage({type:'earth:focus-region',region},location.origin);
   $('#live-select').value='all'; state.page=1; renderRanking();
   toast(region === 'Global' ? '已切换至全球概览' : `已切换至 ${region} 区域`);
 }
 $('#region-select').addEventListener('change',event=>setRegion(event.target.value));
-$$('.region-card').forEach(button=>button.addEventListener('click',()=>setRegion(state.region===button.dataset.region?'Global':button.dataset.region)));
 // Each label is projected from its own geographic anchor in the WebGL scene.
 const regionLabelOffsets = {
   'AMS&ANZ':[14,20], 'EU+':[-144,-96], METAP:[14,20],
   NEA:[14,-94], 'SEA&CCA':[14,20],
 };
 const regionLabels = new Map($$('.region-card').map(card=>[card.dataset.region,card]));
+const regionSummary=$('.region-summary');
+const regionSummaryCount=$('.region-summary-count');
+const regionSummaryList=$('.region-summary-list');
+const metricsPanel=$('.metrics-panel');
+const regionSummaryRows=new Map();
 const regionGuides = new Map();
 for(const region of regionLabels.keys()){
   const guide=document.createElementNS('http://www.w3.org/2000/svg','g');
   const line=document.createElementNS(guide.namespaceURI,'line');
   const pin=document.createElementNS(guide.namespaceURI,'circle');
   pin.setAttribute('r','2.5');guide.append(line,pin);
-  $('.region-guides').append(guide);guide.style.display='none';
+  $('.region-guides').append(guide);
   regionGuides.set(region,{guide,line,pin});
 }
 const reducedEntryMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const regionCounters=new Map();
-for (const [index,card] of $$('.region-card').entries()) {
+for (const [index,[region,card]] of [...regionLabels].entries()) {
   const strong=card.querySelector('strong');
   const value=Number(strong.textContent.replace(/[^0-9.]/g,''));
   strong.innerHTML='<small>$</small><span class="region-number">0.0</span>M';
-  regionCounters.set(card.dataset.region,{index,target:value,node:strong.querySelector('.region-number'),startedAt:null,done:false});
+  const row=document.createElement('div');
+  row.className='region-summary-row';
+  row.inert=true;
+  row.innerHTML='<div><button type="button" class="region-summary-button" aria-pressed="false"><span></span><strong>$<span>0.0</span>M</strong></button></div>';
+  const button=row.querySelector('button');
+  button.firstElementChild.textContent=region;
+  const select=()=>setRegion(state.region===region?'Global':region);
+  card.addEventListener('click',select);
+  button.addEventListener('click',select);
+  regionSummaryList.append(row);
+  regionSummaryRows.set(region,{row,button});
+  regionCounters.set(region,{index,target:value,nodes:[strong.querySelector('.region-number'),row.querySelector('strong span')],startedAt:null,done:false,onCap:false});
 }
 const dashboard=$('#dashboard');
 const totalDisplay=$('.total');
@@ -168,7 +187,10 @@ function renderRevenue(value,roll=false) {
 
 function updateDashboardEntry(elapsed) {
   if(elapsed<lastEntryElapsed-500) {
-    for(const counter of regionCounters.values()){counter.startedAt=null;counter.done=false;counter.node.textContent='0.0';}
+    for(const counter of regionCounters.values()){
+      counter.startedAt=null;counter.done=false;counter.onCap=false;
+      for(const node of counter.nodes)node.textContent='0.0';
+    }
   }
   lastEntryElapsed=elapsed;
   const entry=entryFrame(elapsed,reducedEntryMotion&&elapsed>=0);
@@ -194,56 +216,92 @@ function updateDashboardEntry(elapsed) {
   }
 }
 
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const cardWidth=127.5, cardHeight=90, labelGap=8;
+
+function placeRegionCards(points,capBottom,reserved=[]) {
+  const placements=new Map();
+  for(const {region,ax,ay,onCap} of points) {
+    if(!onCap)continue;
+    const candidates=[regionLabelOffsets[region],[-144,-45],[16,-45],[-64,-104],[-64,16],[-144,16],[16,-104]];
+    for(const [dx,dy] of candidates) {
+      const x=clamp(ax+dx,8,584), y=clamp(ay+dy,146,capBottom-cardHeight-labelGap);
+      if(ax>x&&ax<x+cardWidth&&ay>y&&ay<y+cardHeight)continue;
+      if(reserved.some(rect=>x<rect.x+rect.width+labelGap&&x+cardWidth+labelGap>rect.x&&
+        y<rect.y+rect.height+labelGap&&y+cardHeight+labelGap>rect.y))continue;
+      placements.set(region,{x,y});
+      reserved.push({x,y,width:cardWidth,height:cardHeight});
+      break;
+    }
+  }
+  return placements;
+}
+
 function updateRegionLabels(points,elapsed=-1) {
   updateDashboardEntry(elapsed);
-  if (!Array.isArray(points)) return;
-  const frame = $('.earth-frame');
-  const positions=points.map(point=>{
-    const ax=frame.offsetLeft+point.x,ay=frame.offsetTop+point.y;
-    const onCap=ax>=0&&ax<=720&&ay>=126&&ay<=606;
-    return {...point,ax,ay,attached:onCap&&point.visibility>.24};
-  });
-  const dockPosition=region=>({x:584,y:132+regionCounters.get(region).index*96});
-  const reserved=positions.filter(point=>regionCounters.has(point.region))
-    .map(point=>({...dockPosition(point.region),dockFor:point.region}));
-  const ordered=positions.sort((a,b)=>Number(b.region===state.region)-Number(a.region===state.region));
-  for (const point of ordered) {
-    const card = regionLabels.get(point.region), offset = regionLabelOffsets[point.region];
-    if (!card || !offset || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-    const {ax,ay,attached}=point;
-    const counter=regionCounters.get(point.region);
-    if(counter.startedAt===null && elapsed>=(reducedEntryMotion?0:500+counter.index*80)) counter.startedAt=elapsed;
+  if(!Array.isArray(points))return;
+  const frame=$('.earth-frame');
+  const frameX=frame.offsetLeft, frameY=frame.offsetTop;
+  const capBottom=metricsPanel.classList.contains('expanded')?503:620;
+  const positions=[];
+  for(const {region,x,y,visibility} of points) {
+    const counter=regionCounters.get(region);
+    if(!counter||!Number.isFinite(x)||!Number.isFinite(y))continue;
+    if(counter.startedAt===null&&elapsed>=(reducedEntryMotion?0:500+counter.index*80))counter.startedAt=elapsed;
     const reveal=counter.startedAt===null?0:reducedEntryMotion?1:smoothProgress(elapsed,counter.startedAt,800);
-    const visible=reveal>.015;
-    card.style.transform=reveal===1?'':`translateY(${((1-reveal)*12).toFixed(2)}px)`;
-    if(counter.startedAt!==null && !counter.done) {
+    if(reveal<=.015)continue;
+    if(!counter.done) {
       const progress=counterProgress(elapsed,counter.startedAt+100,1300,reducedEntryMotion);
-      counter.node.textContent=(counter.target*progress).toFixed(1);
+      const value=(counter.target*progress).toFixed(1);
+      for(const node of counter.nodes)node.textContent=value;
       counter.done=progress===1;
     }
-    const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
-    const candidates=[offset,[-144,-45],[16,-45],[-64,-104],[-64,16],[-144,16],[16,-104]];
-    let x=0,y=0,placed=false;
-    if(visible&&attached) for(const [dx,dy] of candidates){
-      x=clamp(ax+dx,8,584);y=clamp(ay+dy,146,518);
-      if(reserved.some(rect=>rect.dockFor!==point.region&&Math.abs(rect.x-x)<136&&Math.abs(rect.y-y)<98))continue;
-      if(ax>x&&ax<x+127.5&&ay>y&&ay<y+90)continue;
-      reserved.push({x,y});placed=true;break;
-    }
-    if(!placed){
-      ({x,y}=dockPosition(point.region));
-    }
-    card.classList.toggle('is-docked',!placed);
-    card.style.left=x.toFixed(1)+'px';card.style.top=y.toFixed(1)+'px';
-    const {guide,line,pin}=regionGuides.get(point.region);
-    guide.style.display=visible&&placed?'':'none';guide.style.opacity=reveal;
-    if(visible&&placed){
+    const ax=frameX+x, ay=frameY+y;
+    // Leave a margin before reattaching a label near the cap edge.
+    const inset=counter.onCap?0:10;
+    counter.onCap=ax>=inset&&ax<=720-inset&&ay>=126+inset&&ay<=capBottom-14-inset&&
+      visibility>(counter.onCap?.18:.38);
+    positions.push({region,ax,ay,reveal,onCap:counter.onCap});
+  }
+  positions.sort((a,b)=>Number(b.region===state.region)-Number(a.region===state.region));
+  let placements=placeRegionCards(positions,capBottom);
+  let reservedRows=0;
+  while(positions.length-placements.size>reservedRows) {
+    reservedRows=positions.length-placements.size;
+    // Match the dock's padding, heading and 26px rows in dashboard.css.
+    const height=40+26*reservedRows;
+    placements=placeRegionCards(positions,capBottom,[{x:532,y:capBottom-16-height,width:172,height}]);
+  }
+  const byRegion=new Map(positions.map(point=>[point.region,point]));
+  const dockedCount=positions.length-placements.size;
+  const count=String(dockedCount);
+  if(regionSummaryCount.textContent!==count)regionSummaryCount.textContent=count;
+  regionSummary.classList.toggle('is-visible',dockedCount>0);
+  const focused=document.activeElement;
+  regionSummary.inert=dockedCount===0;
+
+  for(const [region,card] of regionLabels) {
+    const point=byRegion.get(region), placement=placements.get(region);
+    const {row,button}=regionSummaryRows.get(region);
+    const {guide,line,pin}=regionGuides.get(region);
+    const docked=Boolean(point&&!placement);
+    card.classList.toggle('is-visible',Boolean(placement));
+    card.inert=!placement;
+    guide.classList.toggle('is-visible',Boolean(placement));
+    row.classList.toggle('is-visible',docked);
+    row.inert=!docked;
+    if(placement) {
+      const {x,y}=placement, {ax,ay,reveal}=point;
+      card.style.left=x.toFixed(1)+'px';card.style.top=y.toFixed(1)+'px';
+      card.style.setProperty('--region-reveal',reveal);
+      card.style.setProperty('--region-lift',`${((1-reveal)*10).toFixed(2)}px`);
+      guide.style.setProperty('--region-reveal',reveal);
       pin.setAttribute('cx',ax);pin.setAttribute('cy',ay);
       line.setAttribute('x1',ax);line.setAttribute('y1',ay);
-      line.setAttribute('x2',clamp(ax,x,x+127.5));line.setAttribute('y2',clamp(ay,y,y+90));
+      line.setAttribute('x2',clamp(ax,x,x+cardWidth));line.setAttribute('y2',clamp(ay,y,y+cardHeight));
     }
-    card.style.opacity = String(reveal); card.style.visibility = visible ? 'visible' : 'hidden';
-    card.setAttribute('aria-hidden',String(!visible)); card.tabIndex = visible ? 0 : -1;
+    if(placement&&focused===button)card.focus({preventScroll:true});
+    if(docked&&focused===card)button.focus({preventScroll:true});
   }
 }
 window.addEventListener('message',event=>{
