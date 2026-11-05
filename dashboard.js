@@ -88,6 +88,15 @@ $('#previous-page').addEventListener('click', () => { state.page=Math.max(1,stat
 $('#next-page').addEventListener('click', () => { state.page=Math.min(10,state.page+1);renderRanking(); });
 function setRegion(region) {
   state.region=region; $('#region-select').value=region;
+  regionReturn.classList.toggle('is-visible',region!=='Global');
+  if(region==='Global'&&document.activeElement===regionReturn)$('#region-select').focus();
+  regionReturn.inert=region==='Global';
+  if(region==='Global'){
+    regionClose.classList.remove('is-visible');
+    if(document.activeElement===regionClose)$('#region-select').focus();
+    regionClose.inert=true;
+    $('#spin-toggle').checked=true;
+  }
   for(const [name,card] of regionLabels) {
     const pressed=String(name===region);
     card.setAttribute('aria-pressed',pressed);
@@ -108,6 +117,27 @@ const regionSummary=$('.region-summary');
 const regionSummaryCount=$('.region-summary-count');
 const regionSummaryList=$('.region-summary-list');
 const metricsPanel=$('.metrics-panel');
+const regionReturn=$('#region-return');
+const regionLabelContainers=new Map();
+for(const [region,card] of regionLabels){
+  const container=document.createElement('div');
+  container.className='region-label';
+  card.before(container);
+  container.append(card);
+  regionLabelContainers.set(region,container);
+}
+const regionClose=document.createElement('button');
+regionClose.id='region-close';
+regionClose.className='region-close';
+regionClose.type='button';
+regionClose.title='返回全球';
+regionClose.setAttribute('aria-label','关闭地区详情，返回全球');
+regionClose.innerHTML='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+regionClose.inert=true;
+regionClose.addEventListener('click',()=>setRegion('Global'));
+let regionView='Global';
+let regionTransitioning=false;
+regionReturn.addEventListener('click',()=>setRegion('Global'));
 const regionSummaryRows=new Map();
 const regionGuides = new Map();
 for(const region of regionLabels.keys()){
@@ -221,9 +251,10 @@ const cardWidth=127.5, cardHeight=90, labelGap=8;
 
 function placeRegionCards(points,capBottom,reserved=[]) {
   const placements=new Map();
-  for(const {region,ax,ay,onCap} of points) {
+  for(const {region,ax,ay,onCap,detail} of points) {
     if(!onCap)continue;
-    const candidates=[regionLabelOffsets[region],[-144,-45],[16,-45],[-64,-104],[-64,16],[-144,16],[16,-104]];
+    const candidates=detail?[[16,-45],[16,-104],[16,16],[-144,-104],[-144,-45]]:
+      [regionLabelOffsets[region],[-144,-45],[16,-45],[-64,-104],[-64,16],[-144,16],[16,-104]];
     for(const [dx,dy] of candidates) {
       const x=clamp(ax+dx,8,584), y=clamp(ay+dy,146,capBottom-cardHeight-labelGap);
       if(ax>x&&ax<x+cardWidth&&ay>y&&ay<y+cardHeight)continue;
@@ -237,7 +268,7 @@ function placeRegionCards(points,capBottom,reserved=[]) {
   return placements;
 }
 
-function updateRegionLabels(points,elapsed=-1) {
+function updateRegionLabels(points,elapsed=-1,shapeAnchor=null) {
   updateDashboardEntry(elapsed);
   if(!Array.isArray(points))return;
   const frame=$('.earth-frame');
@@ -261,7 +292,9 @@ function updateRegionLabels(points,elapsed=-1) {
     const inset=counter.onCap?0:10;
     counter.onCap=ax>=inset&&ax<=720-inset&&ay>=126+inset&&ay<=capBottom-14-inset&&
       visibility>(counter.onCap?.18:.38);
-    positions.push({region,ax,ay,reveal,onCap:counter.onCap});
+    const detail=regionView!=='Global';
+    positions.push({region,ax:detail&&shapeAnchor?frameX+shapeAnchor.x:ax,
+      ay:detail&&shapeAnchor?frameY+shapeAnchor.y:ay,reveal,onCap:detail?region===regionView:counter.onCap,detail});
   }
   positions.sort((a,b)=>Number(b.region===state.region)-Number(a.region===state.region));
   let placements=placeRegionCards(positions,capBottom);
@@ -273,6 +306,14 @@ function updateRegionLabels(points,elapsed=-1) {
     placements=placeRegionCards(positions,capBottom,[{x:532,y:capBottom-16-height,width:172,height}]);
   }
   const byRegion=new Map(positions.map(point=>[point.region,point]));
+  const selectedPlacement=regionView===state.region&&regionView!=='Global'?placements.get(regionView):null;
+  const closeVisible=Boolean(selectedPlacement&&!regionTransitioning);
+  regionClose.classList.toggle('is-visible',closeVisible);
+  regionClose.inert=!closeVisible;
+  if(selectedPlacement){
+    const container=regionLabelContainers.get(regionView);
+    if(regionClose.parentElement!==container)container.append(regionClose);
+  }
   const dockedCount=positions.length-placements.size;
   const count=String(dockedCount);
   if(regionSummaryCount.textContent!==count)regionSummaryCount.textContent=count;
@@ -281,20 +322,22 @@ function updateRegionLabels(points,elapsed=-1) {
   regionSummary.inert=dockedCount===0;
 
   for(const [region,card] of regionLabels) {
+    const container=regionLabelContainers.get(region);
     const point=byRegion.get(region), placement=placements.get(region);
     const {row,button}=regionSummaryRows.get(region);
     const {guide,line,pin}=regionGuides.get(region);
     const docked=Boolean(point&&!placement);
-    card.classList.toggle('is-visible',Boolean(placement));
+    container.classList.toggle('is-visible',Boolean(placement));
+    card.classList.toggle('is-detail',Boolean(placement&&point?.detail));
     card.inert=!placement;
     guide.classList.toggle('is-visible',Boolean(placement));
     row.classList.toggle('is-visible',docked);
     row.inert=!docked;
     if(placement) {
       const {x,y}=placement, {ax,ay,reveal}=point;
-      card.style.left=x.toFixed(1)+'px';card.style.top=y.toFixed(1)+'px';
-      card.style.setProperty('--region-reveal',reveal);
-      card.style.setProperty('--region-lift',`${((1-reveal)*10).toFixed(2)}px`);
+      container.style.left=x.toFixed(1)+'px';container.style.top=y.toFixed(1)+'px';
+      container.style.setProperty('--region-reveal',reveal);
+      container.style.setProperty('--region-lift',`${((1-reveal)*10).toFixed(2)}px`);
       guide.style.setProperty('--region-reveal',reveal);
       pin.setAttribute('cx',ax);pin.setAttribute('cy',ay);
       line.setAttribute('x1',ax);line.setAttribute('y1',ay);
@@ -307,11 +350,20 @@ function updateRegionLabels(points,elapsed=-1) {
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==$('.earth-frame').contentWindow)return;
   if(event.data?.type==='earth:failed'){updateDashboardEntry(2600);toast('地球加载失败，其他看板内容可正常使用');}
-  if(event.data?.type==='earth:regions')updateRegionLabels(event.data.points,event.data.entryElapsed);
+  if(event.data?.type==='earth:region-view'){
+    regionView=event.data.region;
+    regionTransitioning=Boolean(event.data.transitioning);
+  }
+  if(event.data?.type==='earth:morph-failed')toast('地区轮廓加载失败，请重新选择地区');
+  if(event.data?.type==='earth:regions')updateRegionLabels(event.data.points,event.data.entryElapsed,event.data.shapeAnchor);
   if(event.data?.type==='earth:ready'&&state.region!=='Global')$('.earth-frame').contentWindow.postMessage({type:'earth:focus-region',region:state.region},location.origin);
   if(event.data?.type==='earth:reset'&&state.region!=='Global')setRegion('Global');
 });
-$('#expand-metrics').addEventListener('click',()=>{const expanded=$('.metrics-panel').classList.toggle('expanded');$('#expand-metrics').setAttribute('aria-expanded',String(expanded));});
+$('#expand-metrics').addEventListener('click',()=>{
+  const expanded=metricsPanel.classList.toggle('expanded');
+  $('#expand-metrics').setAttribute('aria-expanded',String(expanded));
+  $('.earth-frame').contentWindow.postMessage({type:'earth:layout',height:(expanded?503:620)-126},location.origin);
+});
 function refreshData() {
   const now = new Date();
   const time = now.toLocaleTimeString('en-GB',{timeZone:'UTC',hour12:false});

@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import './presentation-base.js?v=20261103-light-globe';
 import {createCountryRegions} from './country-regions.js';
 import {entryFrame} from '../../entry-motion.mjs?v=20261027-transparent-entry';
+import {createRegionMorph,globeFloatShader} from './region-morph.js?v=20261105-particle-polish';
+import {createSignalParticles,particleStyleShader} from './signal-particles.js?v=20261105-particle-polish';
 
 const earth = window.__earth;
 const scene = earth.parent;
@@ -73,6 +75,11 @@ function resetView() {
 resetView();
 if (isDashboardEmbed) {
   document.querySelector('#app canvas').addEventListener('dblclick', () => {
+    if (regionMorph.active) {
+      focusRegion('Global');
+      parent.postMessage({type:'earth:reset'}, location.origin);
+      return;
+    }
     focusFlight = null;coastVelocity=0;
     resetView();
     parent.postMessage({type:'earth:reset'}, location.origin);
@@ -186,10 +193,10 @@ const positions=[];
 const particleTones=[];
 let particleSeed=11931;
 function particleRandom(){particleSeed=(Math.imul(particleSeed,1664525)+1013904223)>>>0;return particleSeed/4294967296;}
-const cellSize=.058,cells=new Map();
+const cellSize=.052,cells=new Map();
 const pointSpacings=[];
 const cellKey=(x,y,z)=>`${x},${y},${z}`;
-for(let i=0;i<150000;i++){
+for(let i=0;i<190000;i++){
  const lat=THREE.MathUtils.radToDeg(Math.asin(2*particleRandom()-1));
  const lon=particleRandom()*360-180;
  if(lat< -79 || lat>84)continue;
@@ -199,7 +206,7 @@ for(let i=0;i<150000;i++){
  const pos=coordinates(lat,lon,2.006);
  const density=particleDensity(lat,lon,x,y,pos);
  if(particleRandom()>.045+.95*density*density)continue;
- const spacing=THREE.MathUtils.lerp(cellSize,.022,density);
+ const spacing=THREE.MathUtils.lerp(cellSize,.019,density);
  const tone=THREE.MathUtils.clamp(.24+density*.55+particleRandom()*.25,0,1);
  const cx=Math.floor(pos.x/cellSize),cy=Math.floor(pos.y/cellSize),cz=Math.floor(pos.z/cellSize);
  let separated=true;
@@ -224,12 +231,35 @@ const hoverAmounts=new Float32Array(positions.length/3);
 const hoverAttribute=new THREE.BufferAttribute(hoverAmounts,1).setUsage(THREE.DynamicDrawUsage);
 geometry.setAttribute('hoverAmount',hoverAttribute);
 const particles=new THREE.Points(geometry,new THREE.ShaderMaterial({
- uniforms:cutUniforms,transparent:true,depthWrite:false,toneMapped:false,
- vertexShader:`attribute float hoverAmount; attribute float particleTone; varying float vTone; varying float vHover; varying float facing;
- void main(){vec4 p=modelViewMatrix*vec4(position,1.);vHover=hoverAmount;vTone=particleTone;
+ uniforms:cutUniforms,transparent:true,depthWrite:false,depthTest:false,toneMapped:false,
+ vertexShader:`attribute float hoverAmount; attribute float particleTone;
+ attribute vec3 morphSource; attribute vec3 morphTarget; attribute vec3 morphScatter;
+ attribute float morphDelay; attribute float morphTone;
+ uniform float morphEnabled; uniform float morphProgress; uniform float morphShape;
+ uniform float particleTime; uniform float particleFloatStrength;
+ varying float vTone; varying float vHover; varying float facing; varying float vShape; varying float vFloat;
+ varying float vSignalLife; varying float vGlobalEmission;
+ ${globeFloatShader}
+ void main(){vec3 floated=floatingGlobePosition(position,particleTone,particleTime,particleFloatStrength);
+ vec4 p=modelViewMatrix*vec4(floated,1.);vHover=hoverAmount;vTone=mix(particleTone,morphTone,morphShape);vShape=morphShape;
+ vFloat=clamp(length(floated-position)/.6,0.,1.)*(1.-morphShape);
+ vSignalLife=globeSignalAge(position,particleTone,particleTime);
+ vGlobalEmission=particleFloatStrength*(1.-morphShape);
  facing=dot(normalize(normalMatrix*normalize(position)),normalize(-p.xyz));
- gl_Position=projectionMatrix*p;gl_PointSize=(mix(1.4,3.1,particleTone)+mix(4.3,7.8,particleTone)*hoverAmount)*float(${Math.min(devicePixelRatio,2).toFixed(1)})*6.5/-p.z*mix(1.,1.9,hoverAmount);}`,
- fragmentShader:cutShader+`varying float vTone; varying float vHover; varying float facing;
+ float depthScale=clamp(6.5/-p.z,.8,1.15);
+ float baseSize=(mix(1.,1.9,particleTone)+mix(4.3,7.8,particleTone)*hoverAmount)*depthScale*mix(1.,1.9,hoverAmount);
+ if(morphEnabled>.5){
+   float t=smoothstep(0.,1.,clamp((morphProgress-morphDelay)/(1.-morphDelay),0.,1.));
+   vec3 world=mix(morphSource,morphTarget,t)+morphScatter*sin(3.14159265*t)*(1.-t*.4);
+   p=viewMatrix*vec4(world,1.);
+   facing=mix(facing,1.,morphShape);
+ }
+ gl_Position=projectionMatrix*p;
+ gl_PointSize=mix(baseSize,mix(1.,1.9,vTone)+hoverAmount*5.,morphShape)*float(${Math.min(devicePixelRatio,2).toFixed(1)})*mix(1.,1.4,vFloat);
+ }`,
+ fragmentShader:cutShader+`varying float vTone; varying float vHover; varying float facing; varying float vShape; varying float vFloat;
+ varying float vSignalLife; varying float vGlobalEmission;
+ ${particleStyleShader}
  void main(){if(facing<.015)discard;
  vec2 pointOffset=gl_PointCoord-.5;
  float haloRadius=length(pointOffset);
@@ -238,8 +268,8 @@ const particles=new THREE.Points(geometry,new THREE.ShaderMaterial({
  float featherStart=mix(.30,.26,vHover);
  float alpha=(1.-smoothstep(featherStart,edge,r))*smoothstep(.015,.15,facing)*entryRed*.86;
  vec2 point=globeScreenPosition();
- float cap=smoothstep(${isDashboardEmbed ? ".06,.93" : "-.85,.65"},point.y);
- vec3 core=mix(vec3(.10,.20,.52),vec3(.25,.39,.73),cap);
+ float cap=mix(smoothstep(${isDashboardEmbed ? ".06,.93" : "-.85,.65"},point.y),.9,vShape);
+ vec3 core=particleColor(vTone)*mix(.75,1.,cap);
  float hoverLight=smoothstep(0.,.85,vHover);
  float highlight=hoverLight*(1.-smoothstep(.23,.49,r));
  core=mix(core,vec3(.60,.80,1.),highlight);
@@ -248,21 +278,53 @@ const particles=new THREE.Points(geometry,new THREE.ShaderMaterial({
  float haloOpacity=.23*hoverLight*(1.-smoothstep(.08,.5,haloRadius))
    *smoothstep(.015,.15,facing)*entryRed;
  float opacity=coreOpacity+haloOpacity*(1.-coreOpacity);
- vec3 color=mix(vec3(.20,.48,1.),core,coreOpacity/max(opacity,.001));
- // Idle particles range from soft blue flecks to crisp ice-blue diamonds.
+ vec3 color=mix(particleColor(vTone),core,coreOpacity/max(opacity,.001));
+ // The surface and emitted signals share their profile and blue palette.
  float clarity=smoothstep(.34,.84,vTone);
- float diamond=abs(pointOffset.x)+abs(pointOffset.y);
- float idleDistance=mix(haloRadius,diamond,clarity);
- float idleEdge=1.-smoothstep(mix(.06,.32,clarity),.47,idleDistance);
+ float idleEdge=particleProfile(pointOffset,vTone);
  float idleVisibility=mix(.19,.96,clarity)*mix(.57,1.,cap);
- vec3 idleColor=mix(vec3(.045,.17,.37),vec3(.48,.77,1.),clarity*clarity);
+ vec3 idleColor=particleColor(vTone);
  float idleWeight=1.-smoothstep(0.,.34,vHover);
  float idleAlpha=idleEdge*idleVisibility*smoothstep(.015,.15,facing)*entryRed;
- gl_FragColor=vec4(mix(color,idleColor,idleWeight),mix(opacity,idleAlpha,idleWeight));
+ float signalFade=particleLifetime(vSignalLife);
+ gl_FragColor=vec4(mix(color,idleColor,idleWeight),mix(opacity,idleAlpha,idleWeight)*mix(1.,.9,vShape)*mix(1.,.65,vFloat)*mix(1.,signalFade,vGlobalEmission));
  #include <colorspace_fragment>
  }`
 }));
 particles.name='continent-particles';earth.add(particles);
+const regionMorph=createRegionMorph(particles,camera,reducedMotion,(region,transitioning)=>{
+  if(region==='Global'&&!transitioning){
+    controls.enabled=true;
+    resumeSpinAt=performance.now()+300;
+  }
+  if(isDashboardEmbed)parent.postMessage({type:'earth:region-view',region:region==='Global'&&transitioning?'transition':region,transitioning},location.origin);
+});
+addEventListener('resize',()=>regionMorph.resize());
+const signalParticles=createSignalParticles(scene,particles,camera,regionMorph,reducedMotion);
+const contextParticles=new THREE.Points(geometry,new THREE.ShaderMaterial({
+  uniforms:{contextOpacity:{value:0},particleTime:cutUniforms.particleTime,particleFloatStrength:cutUniforms.particleFloatStrength,globeSignalUp:cutUniforms.globeSignalUp,
+    regionMask:cutUniforms.regionMask,regionMaskRect:cutUniforms.regionMaskRect,regionViewport:cutUniforms.regionViewport},transparent:true,depthWrite:false,depthTest:false,toneMapped:false,
+  vertexShader:`attribute float particleTone; varying float tone; varying float facing;
+    uniform float particleTime; uniform float particleFloatStrength;
+    ${globeFloatShader}
+    void main(){vec3 floated=floatingGlobePosition(position,particleTone,particleTime,particleFloatStrength);
+    vec4 p=modelViewMatrix*vec4(floated,1.);tone=particleTone;
+    facing=dot(normalize(normalMatrix*normalize(position)),normalize(-p.xyz));
+    gl_Position=projectionMatrix*p;
+    gl_PointSize=mix(1.,1.9,particleTone)*float(${Math.min(devicePixelRatio,2).toFixed(1)})*clamp(6.5/-p.z,.8,1.15);}`,
+  fragmentShader:`uniform float contextOpacity; varying float tone; varying float facing;
+    uniform sampler2D regionMask; uniform vec4 regionMaskRect; uniform vec2 regionViewport;
+    ${particleStyleShader}
+    void main(){
+    vec2 uv=(gl_FragCoord.xy/regionViewport-regionMaskRect.xy)/regionMaskRect.zw;
+    float clearance=1.;
+    if(all(greaterThanEqual(uv,vec2(0.)))&&all(lessThanEqual(uv,vec2(1.))))clearance=1.-smoothstep(.005,.08,texture2D(regionMask,uv).a);
+    float dotAlpha=particleProfile(gl_PointCoord-.5,tone);
+    gl_FragColor=vec4(particleColor(tone),dotAlpha*contextOpacity*mix(.25,1.,tone)*smoothstep(.01,.18,facing)*clearance);
+    #include <colorspace_fragment>
+    }`,
+}));
+contextParticles.name='dim-global-context';earth.add(contextParticles);
 for (const child of scene.children) {
   if (child.isAmbientLight) child.intensity = 0.035;
   if (child.isDirectionalLight) { child.intensity = 3.2; child.color.set('#e2ebff'); }
@@ -440,6 +502,20 @@ const panelNames = {AMS:'AMS&ANZ',EU:'EU+',METAP:'METAP',NEA:'NEA',SEA:'SEA&CCA'
 const focusLocations=Object.fromEntries(regions.map(({id,lat,lon})=>[panelNames[id],[lat-36,lon]]));
 let focusFlight = null;
 function focusRegion(region) {
+  if(isDashboardEmbed){
+    focusFlight=null;coastVelocity=0;lastPointer=null;
+    if(region==='Global')spinPausedByUser=false;
+    params.earthSpin=false;resumeSpinAt=Infinity;
+    controls.enableDamping=false;controls.update();controls.enableDamping=true;
+    controls.enabled=false;
+    updateSpinButton();
+    if(region==='Global'&&!regionMorph.active){controls.enabled=true;resumeSpinAt=performance.now()+850;}
+    regionMorph.select(region).catch(()=>{
+      controls.enabled=true;resumeSpinAt=performance.now()+850;
+      parent.postMessage({type:'earth:morph-failed'},location.origin);
+    });
+    return;
+  }
   if (region === 'Global') { focusFlight = null;coastVelocity=0;resetView(); return; }
   const location = focusLocations[region];
   if (!location) return;
@@ -466,7 +542,8 @@ if (isDashboardEmbed) {
   window.addEventListener('message', event => {
     if (event.origin !== location.origin || event.source !== parent) return;
     if (event.data?.type === 'earth:focus-region') focusRegion(event.data.region);
-    if(event.data?.type==='earth:appearance'){params.cloudOpacity=event.data.clouds?.045:0;spinPausedByUser=!event.data.spin;params.earthSpin=event.data.spin;resumeSpinAt=event.data.spin?0:Infinity;updateSpinButton();}
+    if(event.data?.type==='earth:layout'&&Number.isFinite(event.data.height))regionMorph.setAvailableHeight(event.data.height);
+    if(event.data?.type==='earth:appearance'){params.cloudOpacity=event.data.clouds?.045:0;spinPausedByUser=!event.data.spin;params.earthSpin=event.data.spin&&!regionMorph.active;resumeSpinAt=event.data.spin&&!regionMorph.active?0:Infinity;updateSpinButton();}
   });
 }
 // Direct drag with a short inertial coast, then a gentle automatic restart.
@@ -475,6 +552,7 @@ globeCanvas.style.cursor='grab';
 const hoverPointer=new THREE.Vector2(-1e5,-1e5),hoverSmoothed=hoverPointer.clone();
 let hoverActive=false,lastHoverTime=performance.now();
 const hoverProjection=new THREE.Matrix4();
+const hoverWorldPosition=new THREE.Vector3();
 function setHoverPointer(event){
  const rect=globeCanvas.getBoundingClientRect();
  hoverPointer.set((event.clientX-rect.left)/rect.width*innerWidth,(event.clientY-rect.top)/rect.height*innerHeight);
@@ -487,19 +565,22 @@ window.addEventListener('blur',()=>{hoverActive=false;});
 function updateParticleHover(){
  const now=performance.now(),dt=Math.min(.05,(now-lastHoverTime)/1000);lastHoverTime=now;
  hoverSmoothed.lerp(hoverPointer,1-Math.exp(-dt/.035));
- earth.updateWorldMatrix(true,false);
- hoverProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).multiply(earth.matrixWorld);
+ particles.updateWorldMatrix(true,false);
+ hoverProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
  const e=hoverProjection.elements;
  const radius=cutUniforms.presentationRadius.value/Math.min(devicePixelRatio,2)*.18;
  const inverseRadiusSquared=1/(radius*radius);
  const enter=1-Math.exp(-dt/.075),leave=1-Math.exp(-dt/.32);
  for(let i=0;i<hoverAmounts.length;i++){
-  const x=positions[i*3],y=positions[i*3+1],z=positions[i*3+2];
-  const w=e[3]*x+e[7]*y+e[11]*z+e[15];
-  const sx=((e[0]*x+e[4]*y+e[8]*z+e[12])/w+1)*innerWidth*.5;
-  const sy=(1-(e[1]*x+e[5]*y+e[9]*z+e[13])/w)*innerHeight*.5;
-  const distanceSquared=(sx-hoverSmoothed.x)**2+(sy-hoverSmoothed.y)**2;
-  const target=hoverActive?Math.exp(-distanceSquared*inverseRadiusSquared*2.6):0;
+  let target=0;
+  if(hoverActive&&!regionMorph.transitioning){
+    const {x,y,z}=regionMorph.getWorldPosition(i,hoverWorldPosition);
+    const w=e[3]*x+e[7]*y+e[11]*z+e[15];
+    const sx=((e[0]*x+e[4]*y+e[8]*z+e[12])/w+1)*innerWidth*.5;
+    const sy=(1-(e[1]*x+e[5]*y+e[9]*z+e[13])/w)*innerHeight*.5;
+    const distanceSquared=(sx-hoverSmoothed.x)**2+(sy-hoverSmoothed.y)**2;
+    target=Math.exp(-distanceSquared*inverseRadiusSquared*2.6);
+  }
   hoverAmounts[i]=reducedMotion?target:hoverAmounts[i]+(target-hoverAmounts[i])*(target>hoverAmounts[i]?enter:leave);
  }
  hoverAttribute.needsUpdate=true;
@@ -521,7 +602,7 @@ globeCanvas.addEventListener('pointerup',event=>{
 globeCanvas.addEventListener('pointercancel',()=>{hoverActive=false;lastPointer=null;coastVelocity=0;globeCanvas.style.cursor='grab';});
 function updateMomentum(){
  const now=performance.now(),dt=Math.min(.05,(now-lastMotionTime)/1000);lastMotionTime=now;
- if(reducedMotion||isInteracting||focusFlight){coastVelocity=0;return;}
+ if(reducedMotion||isInteracting||focusFlight||regionMorph.active){coastVelocity=0;return;}
  const decay=Math.exp(-2.8*dt);
  earth.rotation.y+=coastVelocity*(1-decay)/2.8;coastVelocity*=decay;
  if(Math.abs(coastVelocity)<.001)coastVelocity=0;
@@ -541,7 +622,7 @@ function resumeAfterInteraction() {
 controls.addEventListener('end', resumeAfterInteraction);
 globeCanvas.addEventListener('lostpointercapture', resumeAfterInteraction);
 function updateAutoSpin() {
-  if (!params.earthSpin && !spinPausedByUser && !isInteracting && !focusFlight && performance.now() >= resumeSpinAt) {
+  if (!params.earthSpin && !spinPausedByUser && !isInteracting && !focusFlight && !regionMorph.active && performance.now() >= resumeSpinAt) {
     params.earthSpin = true; updateSpinButton();
   }
 }
@@ -550,14 +631,18 @@ let lastRegionLayoutTime = -Infinity;
 function animateLights() {
   const entryElapsed = isDashboardEmbed ? (entryStartedAt === null ? -1 : performance.now()-entryStartedAt) : Infinity;
   const entry = entryFrame(entryElapsed,reducedMotion && entryStartedAt !== null);
-  cutUniforms.entryTerrain.value=entry.terrain; cutUniforms.entryRed.value=entry.red;
-  atmosphere.material.uniforms.entryGlow.value=entry.glow;
+  regionMorph.update(performance.now());
+  const shapeFade=1-cutUniforms.morphShape.value*.82;
+  contextParticles.material.uniforms.contextOpacity.value=entry.red*cutUniforms.morphShape.value*.065;
+  cutUniforms.entryTerrain.value=entry.terrain*shapeFade; cutUniforms.entryRed.value=entry.red;
+  atmosphere.material.uniforms.entryGlow.value=entry.glow*shapeFade;
   updateAutoSpin();
   updateMomentum();
   updateFocusFlight();
   updateKeyLight();
   updatePresentationFrame();
   updateParticleHover();
+  signalParticles.update(performance.now());
   earth.getWorldPosition(earthCenter);
   const layout = [];
   for (const light of lights) {
@@ -580,7 +665,7 @@ function animateLights() {
   }
   const now = performance.now();
   if (isDashboardEmbed && now - lastRegionLayoutTime > 33) {
-    parent.postMessage({type:'earth:regions',points:layout,entryElapsed},location.origin);
+    parent.postMessage({type:'earth:regions',points:layout,entryElapsed,shapeAnchor:regionMorph.labelAnchor},location.origin);
     lastRegionLayoutTime = now;
   }
   requestAnimationFrame(animateLights);

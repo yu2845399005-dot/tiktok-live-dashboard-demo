@@ -5,8 +5,8 @@
 <meta name="theme-color" content="#060613">
 <title>TikTok LIVE · Global dashboard</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="dashboard.css?v=local-region-summary">
-<script src="dashboard.js?v=local-region-summary" type="module"></script>
+<link rel="stylesheet" href="dashboard.css?v=20261105-particle-polish">
+<script src="dashboard.js?v=20261105-particle-polish" type="module"></script>
 </head>
 <body>
 <main class="dashboard" id="dashboard" aria-label="TikTok LIVE 全球数据看板">
@@ -16,7 +16,7 @@
 <div class="update-line"><span id="update-time">当前数据更新于: 21:13:02 10-18 (GMT+0)</span><button class="icon-button tiny" id="refresh-data" aria-label="刷新数据"><span class="refresh-glyph" aria-hidden="true"></span></button></div>
 </div>
 <div class="headline">
-<div class="brand-line"><div class="brand" aria-label="TikTok LIVE"><img src="assets/figma-nov02/new-39-302-46440.svg" alt="" class="tiktok-logo" ><img src="assets/figma-nov02/new-39-302-3f782.svg" alt="" class="live-logo" ></div><i class="brand-divider"></i><h1>Global dashboard</h1><label class="region-select"><select id="region-select" aria-label="选择区域"><option>Global</option><option>AMS&ANZ</option><option>EU+</option><option>METAP</option><option>NEA</option><option>SEA&CCA</option></select><img src="assets/figma/1-608-21f97.svg" alt="" class="" ></label></div>
+<div class="brand-line"><div class="brand" aria-label="TikTok LIVE"><img src="assets/figma-nov02/new-39-302-46440.svg" alt="" class="tiktok-logo" ><img src="assets/figma-nov02/new-39-302-3f782.svg" alt="" class="live-logo" ></div><i class="brand-divider"></i><h1>Global dashboard</h1><div class="region-select"><button class="region-return" id="region-return" aria-label="返回全球概览" title="返回全球概览" inert>Global</button><select id="region-select" aria-label="选择区域"><option>Global</option><option>AMS&ANZ</option><option>EU+</option><option>METAP</option><option>NEA</option><option>SEA&CCA</option></select><img src="assets/figma/1-608-21f97.svg" alt="" class="" ></div></div>
 <div class="total" aria-label="总营收 56,779,450 美元"><span>$</span><strong data-total="56779450">0</strong></div><div class="realtime-caption"><img src="assets/figma-nov02/new-39-302-7f5d8.svg" alt=""><span>今日实时累计</span><img src="assets/figma-nov02/new-39-302-db8d5.svg" alt=""></div>
 </div>
 <div class="utility-tools"><button class="language-control" id="language" aria-label="切换语言">EN <img src="assets/figma-nov02/new-39-3369-b4bae.svg" alt=""></button><button class="icon-button" id="help" aria-label="查看看板说明"><img src="assets/figma-nov03/2cccf.svg" alt="" class="" ></button><button class="icon-button" id="share" aria-label="复制看板链接"><img src="assets/figma-nov03/46aab.svg" alt="" class="" ></button><button class="icon-button" id="settings" aria-label="地球显示设置"><img src="assets/figma-nov03/266c3.svg" alt="" class="" ></button></div>
@@ -37,7 +37,7 @@
 </section>
 </aside>
 <section class="center-column" aria-label="全球区域概览">
-<div class="earth-stage"><iframe class="earth-frame" src="./earth-demo/demo.html?embed=dashboard&amp;v=20261103-particle-depth" title="互动地球：悬停放大颗粒，拖动旋转，滚轮缩放，双击复位" loading="eager"></iframe></div>
+<div class="earth-stage"><iframe class="earth-frame" src="./earth-demo/demo.html?embed=dashboard&amp;v=20261105-particle-polish" title="互动地球：悬停放大颗粒，拖动旋转，滚轮缩放，双击复位" loading="eager"></iframe></div>
 <div class="region-panels" aria-label="地区营收"><svg class="region-guides" width="720" height="620" aria-hidden="true"></svg><button class="region-card" data-region="AMS&ANZ" aria-label="查看 AMS&ANZ 区域" aria-pressed="false" inert><span>AMS&ANZ</span><strong><small>$</small>7.5M</strong></button><button class="region-card" data-region="EU+" aria-label="查看 EU+ 区域" aria-pressed="false" inert><span>EU+</span><strong><small>$</small>11.5M</strong></button><button class="region-card" data-region="METAP" aria-label="查看 METAP 区域" aria-pressed="false" inert><span>METAP</span><strong><small>$</small>9.5M</strong></button><button class="region-card" data-region="NEA" aria-label="查看 NEA 区域" aria-pressed="false" inert><span>NEA</span><strong><small>$</small>10.5M</strong></button><button class="region-card" data-region="SEA&CCA" aria-label="查看 SEA&CCA 区域" aria-pressed="false" inert><span>SEA&CCA</span><strong><small>$</small>19.5M</strong></button></div>
 <section class="region-summary" aria-labelledby="region-summary-title" inert>
   <div class="region-summary-heading"><h2 id="region-summary-title">其他地区</h2><span class="region-summary-count" aria-hidden="true"></span></div>
